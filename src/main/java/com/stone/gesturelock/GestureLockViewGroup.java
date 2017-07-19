@@ -17,6 +17,8 @@ import android.view.View;
 import android.widget.RelativeLayout;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -35,6 +37,9 @@ public class GestureLockViewGroup extends RelativeLayout {
 
     private static final String TAG = "GestureLockViewGroup";
 
+    // 0  1--lock 2--unlock 3--modify
+    private int mAction = 0;
+
     /**
      * 保存所有的GestureLockView
      */
@@ -47,6 +52,10 @@ public class GestureLockViewGroup extends RelativeLayout {
      * 存储答案
      */
     private int[] mAnswer = { 0, 1, 2, 5, 8 };
+
+    private List<Integer> mFirstAnswer;
+
+    private boolean isFirstTime = true;
     /**
      * 保存用户选中的GestureLockView的id
      */
@@ -105,7 +114,7 @@ public class GestureLockViewGroup extends RelativeLayout {
     /**
      * 最大尝试次数
      */
-    private int mTryTimes = 4;
+    private int mTryTimes = 3;
     /**
      * 回调接口
      */
@@ -231,7 +240,7 @@ public class GestureLockViewGroup extends RelativeLayout {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        if(mTryTimes == 0) {
+        if(mTryTimes == 0 || mAction == 0) {
             return true;
         }
         int action = event.getAction();
@@ -273,24 +282,53 @@ public class GestureLockViewGroup extends RelativeLayout {
 
                 mPaint.setColor(mFingerUpColor);
                 mPaint.setAlpha(50);
-                this.mTryTimes--;
+//                this.mTryTimes--;
 
                 // 回调是否成功
                 if (mOnGestureLockViewListener != null && mChoose.size() > 0) {
+                    switch (mAction) {
+                        case 0 :
+                            break;
+                        case 1 :
+                            if(isFirstTime) {
+//                                mFirstAnswer = mChoose.subList(0, mChoose.size());
+                                mFirstAnswer = new ArrayList<>(mChoose);
+                                isFirstTime = false;
+                                mOnGestureLockViewListener.onFirstLock(mFirstAnswer);
+                                mHandler.sendEmptyMessageDelayed(100, 1000L);
+                            } else {
+                                if(checkLockAnswer()) {
+                                    mOnGestureLockViewListener.onSecondLockSucceeded(mFirstAnswer);
+                                    mHandler.sendEmptyMessageDelayed(100, 1000L);
+                                } else {
+                                    mOnGestureLockViewListener.onSecondLockFailed();
+                                    mHandler.sendEmptyMessageDelayed(100, 500L);
+                                }
+                            }
+                            break;
+                        case 2 :
+                            //延迟重置
+                            if(checkUnlockAnswer()) {
+                                mOnGestureLockViewListener.onUnlockCorrect(mChoose);
+                                mHandler.sendEmptyMessageDelayed(100, 1000L);
+                            } else {
+                                mOnGestureLockViewListener.onUnlockError(mChoose, mTryTimes);
+                                mHandler.sendEmptyMessageDelayed(100, 500L);
+                            }
 
-                    //延迟重置
-                    if(checkAnswer()) {
-                        mOnGestureLockViewListener.onGestureCorrect();
-                        mHandler.sendEmptyMessageDelayed(100, 1000L);
-                    } else {
-                        mOnGestureLockViewListener.onGestureError();
-                        mHandler.sendEmptyMessageDelayed(100, 500L);
+                            if (this.mTryTimes == 0) {
+                                mOnGestureLockViewListener.noMoreTry(mAction);
+                            }
+                            this.mTryTimes--;
+                            break;
+                        case 3:
+                            this.mTryTimes--;
+                            break;
+
                     }
 
-                    if (this.mTryTimes == 0)
-                    {
-                        mOnGestureLockViewListener.noMoreTry();
-                    }
+
+
                 }
 
                 Log.e(TAG, "mUnMatchExceedBoundary = " + mTryTimes);
@@ -359,7 +397,7 @@ public class GestureLockViewGroup extends RelativeLayout {
      * 检查用户绘制的手势是否正确
      * @return
      */
-    private boolean checkAnswer() {
+    private boolean checkUnlockAnswer() {
         if (mAnswer.length != mChoose.size())
             return false;
 
@@ -368,6 +406,21 @@ public class GestureLockViewGroup extends RelativeLayout {
                 return false;
         }
         return true;
+    }
+
+    private boolean checkLockAnswer() {
+        if (mFirstAnswer.size() != mChoose.size())
+            return false;
+
+        return mFirstAnswer.equals(mChoose);
+
+//        int n = mFirstAnswer.size();
+//
+//        for (int i = 0; i < n; i++) {
+//            if (mFirstAnswer.get(i) != mChoose.get(i))
+//                return false;
+//        }
+//        return true;
     }
 
     /**
@@ -403,6 +456,10 @@ public class GestureLockViewGroup extends RelativeLayout {
             }
         }
         return null;
+    }
+
+    public void setAction(int action) {
+        this.mAction = action;
     }
 
     /**
@@ -482,19 +539,31 @@ public class GestureLockViewGroup extends RelativeLayout {
          */
         void onBlockSelected(int cId);
 
+        void onFirstLock(List<Integer> answer);
+
+        void onSecondLockSucceeded(List<Integer> answer);
+
+        void onSecondLockFailed();
         /**
-         *  手势匹配成功
+         *  手势解锁成功
          */
-        void onGestureCorrect();
+        void onUnlockCorrect(List<Integer> answer);
 
         /**
-         *  手势匹配失败
+         *  手势解锁失败
+         *  @param answer
+         *  @param chances
          */
-        void onGestureError();
+        void onUnlockError(List<Integer> answer, int chances);
+
 
         /**
-         * 超过尝试次数
+         *  手势解锁超过尝试次数
+         *  用于 解锁 和 更换密码
+         *  @param action
          */
-        void noMoreTry();
+        void noMoreTry(int action);
+
+        void gestureAnswer(int [] answer);
     }
 }
