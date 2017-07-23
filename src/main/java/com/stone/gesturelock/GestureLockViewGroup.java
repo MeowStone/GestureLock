@@ -17,8 +17,6 @@ import android.view.View;
 import android.widget.RelativeLayout;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -37,8 +35,7 @@ public class GestureLockViewGroup extends RelativeLayout {
 
     private static final String TAG = "GestureLockViewGroup";
 
-    // 0  1--lock 2--unlock 3--modify
-    private int mAction = 0;
+
 
     /**
      * 保存所有的GestureLockView
@@ -51,11 +48,16 @@ public class GestureLockViewGroup extends RelativeLayout {
     /**
      * 存储答案
      */
-    private int[] mAnswer = { 0, 1, 2, 5, 8 };
+    private Integer [] mAnswer = { 0, 1, 2, 5, 8 };
+
+    // 0  1--lock 2--unlock 3--modify
+    private int mAction = 0;
 
     private List<Integer> mFirstAnswer;
 
     private boolean isFirstTime = true;
+
+    private boolean isActionDone = false;
     /**
      * 保存用户选中的GestureLockView的id
      */
@@ -87,6 +89,8 @@ public class GestureLockViewGroup extends RelativeLayout {
      * GestureLockView手指抬起的状态下内圆和外圆的颜色
      */
     private int mFingerUpColor = 0xFFFF0000;
+
+    private int mFingerUpDoneColor = 0x70aef2e7;
 
     /**
      * 宽度
@@ -240,7 +244,7 @@ public class GestureLockViewGroup extends RelativeLayout {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        if(mTryTimes == 0 || mAction == 0) {
+        if(isActionDone || mTryTimes == 0 || mAction == 0) {
             return true;
         }
         int action = event.getAction();
@@ -280,7 +284,7 @@ public class GestureLockViewGroup extends RelativeLayout {
                 break;
             case MotionEvent.ACTION_UP:
 
-                mPaint.setColor(mFingerUpColor);
+//                mPaint.setColor(mFingerUpColor);
                 mPaint.setAlpha(50);
 //                this.mTryTimes--;
 
@@ -291,6 +295,7 @@ public class GestureLockViewGroup extends RelativeLayout {
                             break;
                         case 1 :
                             if(isFirstTime) {
+                                mPaint.setColor(mFingerUpDoneColor);
 //                                mFirstAnswer = mChoose.subList(0, mChoose.size());
                                 mFirstAnswer = new ArrayList<>(mChoose);
                                 isFirstTime = false;
@@ -298,9 +303,12 @@ public class GestureLockViewGroup extends RelativeLayout {
                                 mHandler.sendEmptyMessageDelayed(100, 1000L);
                             } else {
                                 if(checkLockAnswer()) {
+                                    mPaint.setColor(mFingerUpDoneColor);
                                     mOnGestureLockViewListener.onSecondLockSucceeded(mFirstAnswer);
+                                    isActionDone = true;
                                     mHandler.sendEmptyMessageDelayed(100, 1000L);
                                 } else {
+                                    mPaint.setColor(mFingerUpColor);
                                     mOnGestureLockViewListener.onSecondLockFailed();
                                     mHandler.sendEmptyMessageDelayed(100, 500L);
                                 }
@@ -326,9 +334,6 @@ public class GestureLockViewGroup extends RelativeLayout {
                             break;
 
                     }
-
-
-
                 }
 
                 Log.e(TAG, "mUnMatchExceedBoundary = " + mTryTimes);
@@ -467,7 +472,7 @@ public class GestureLockViewGroup extends RelativeLayout {
      *
      * @param answer
      */
-    public void setAnswer(int[] answer) {
+    public void setAnswer(Integer [] answer) {
         this.mAnswer = answer;
     }
 
@@ -502,7 +507,7 @@ public class GestureLockViewGroup extends RelativeLayout {
         @Override
         public void handleMessage(Message msg) {
             super.handleMessage(msg);
-            if(mTryTimes == 0) {
+            if(mTryTimes == 0 || isActionDone) {
                 return;
             }
             reset();
