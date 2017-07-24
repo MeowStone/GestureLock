@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <color name="inner_circle_normal_color">#939090</color>
+    <color name="outer_circle_normal_color">#E0DBDB</color>
+    <color name="outer_inner_on_color">#378FC9</color>
+    <color name="outer_inner_off_failed_color">#80FF0000</color>
+    <color name="outer_inner_off_done_color">#8053d772</color>
+</resources>

@@ -21,7 +21,9 @@ public class GestureLockView extends View {
 
     public static final int STATUS_FINGER_ON = 0x01;
 
-    public static final int STATUS_FINGER_UP = 0x02;
+    public static final int STATUS_FINGER_UP_FAILED = 0x02;
+
+    public static final int STATUS_FINGER_UP_DONE = 0x03;
 
     private int mStatus = STATUS_NO_FINGER;
 
@@ -37,6 +39,7 @@ public class GestureLockView extends View {
      * 外圆半径
      */
     private int mRadius;
+
     /**
      * 画笔的宽度
      */
@@ -68,18 +71,24 @@ public class GestureLockView extends View {
     private int mColorNoFingerInner;
     private int mColorNoFingerOutter;
     private int mColorFingerOn;
-    private int mColorFingerUp;
+    private int mColorFingerUpFailed;
+    private int mColorFingerUpDone;
 
-    @IntDef({STATUS_NO_FINGER, STATUS_FINGER_ON, STATUS_FINGER_UP})
+    @IntDef({STATUS_NO_FINGER, STATUS_FINGER_ON, STATUS_FINGER_UP_FAILED, STATUS_FINGER_UP_DONE})
     @Retention(RetentionPolicy.SOURCE)
     public @interface GestureStatus {}
 
-    public GestureLockView(Context context ,int colorNoFingerInner ,int colorNoFingerOutter ,int colorFingerOn ,int colorFingerUp) {
+    public GestureLockView(Context context , int colorNoFingerInner , int colorNoFingerOutter , int colorFingerOn , int colorFingerOnFailed, int colorFingerOnDone) {
         super(context);
         this.mColorNoFingerInner = colorNoFingerInner;
         this.mColorNoFingerOutter = colorNoFingerOutter;
         this.mColorFingerOn = colorFingerOn;
-        this.mColorFingerUp = colorFingerUp;
+        this.mColorFingerUpFailed = colorFingerOnFailed;
+        this.mColorFingerUpDone = colorFingerOnDone;
+        init();
+    }
+
+    private void init() {
         mPaint = new Paint(Paint.ANTI_ALIAS_FLAG);//
         mArrowPath = new Path();
     }
@@ -122,9 +131,9 @@ public class GestureLockView extends View {
                 canvas.drawCircle(mCenterX, mCenterY, mRadius
                         * mInnerCircleRadiusRate, mPaint);
                 break;
-            case STATUS_FINGER_UP:
+            case STATUS_FINGER_UP_FAILED:
                 // 绘制外圆
-                mPaint.setColor(mColorFingerUp);
+                mPaint.setColor(mColorFingerUpFailed);
                 mPaint.setStyle(Paint.Style.STROKE);
                 mPaint.setStrokeWidth(2);
                 canvas.drawCircle(mCenterX, mCenterY, mRadius, mPaint);
@@ -136,6 +145,20 @@ public class GestureLockView extends View {
                 drawArrow(canvas);
                 break;
 
+            case STATUS_FINGER_UP_DONE :
+                // 绘制外圆
+                mPaint.setColor(mColorFingerUpDone);
+                mPaint.setStyle(Paint.Style.STROKE);
+                mPaint.setStrokeWidth(2);
+                canvas.drawCircle(mCenterX, mCenterY, mRadius, mPaint);
+                // 绘制内圆
+                mPaint.setStyle(Paint.Style.FILL);
+                canvas.drawCircle(mCenterX, mCenterY, mRadius
+                        * mInnerCircleRadiusRate, mPaint);
+
+                drawArrow(canvas);
+
+                break;
             case STATUS_NO_FINGER:
 
                 // 绘制外圆
@@ -147,10 +170,7 @@ public class GestureLockView extends View {
                 canvas.drawCircle(mCenterX, mCenterY, mRadius
                         * mInnerCircleRadiusRate, mPaint);
                 break;
-
         }
-
-
     }
 
     /**

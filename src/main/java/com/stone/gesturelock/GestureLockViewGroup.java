@@ -1,21 +1,21 @@
 package com.stone.gesturelock;
 
-import android.annotation.TargetApi;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.Point;
-import android.os.Build;
 import android.os.Handler;
 import android.os.Message;
+import android.support.annotation.IntDef;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.RelativeLayout;
-
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -35,8 +35,6 @@ public class GestureLockViewGroup extends RelativeLayout {
 
     private static final String TAG = "GestureLockViewGroup";
 
-
-
     /**
      * 保存所有的GestureLockView
      */
@@ -44,14 +42,13 @@ public class GestureLockViewGroup extends RelativeLayout {
     /**
      * 每个边上的GestureLockView的个数
      */
-    private int mCount = 4;
+    private int mCount = 3;
     /**
      * 存储答案
      */
-    private Integer [] mAnswer = { 0, 1, 2, 5, 8 };
+    private Integer [] mAnswer = {};
 
-    // 0  1--lock 2--unlock 3--modify
-    private int mAction = 0;
+
 
     private List<Integer> mFirstAnswer;
 
@@ -76,21 +73,21 @@ public class GestureLockViewGroup extends RelativeLayout {
     /**
      * GestureLockView无手指触摸的状态下内圆的颜色
      */
-    private int mNoFingerInnerCircleColor = 0xFF939090;
+    private int mNoFingerInnerCircleColor = getResources().getColor(R.color.inner_circle_normal_color);
     /**
      * GestureLockView无手指触摸的状态下外圆的颜色
      */
-    private int mNoFingerOuterCircleColor = 0xFFE0DBDB;
+    private int mNoFingerOuterCircleColor = getResources().getColor(R.color.outer_circle_normal_color);
     /**
      * GestureLockView手指触摸的状态下内圆和外圆的颜色
      */
-    private int mFingerOnColor = 0xFF378FC9;
+    private int mFingerOnColor = getResources().getColor(R.color.outer_inner_on_color);
     /**
      * GestureLockView手指抬起的状态下内圆和外圆的颜色
      */
-    private int mFingerUpColor = 0xFFFF0000;
+    private int mFingerUpFailedColor = getResources().getColor(R.color.outer_inner_off_failed_color);
 
-    private int mFingerUpDoneColor = 0x70aef2e7;
+    private int mFingerUpDoneColor = getResources().getColor(R.color.outer_inner_off_done_color);
 
     /**
      * 宽度
@@ -124,6 +121,18 @@ public class GestureLockViewGroup extends RelativeLayout {
      */
     private OnGestureLockViewListener mOnGestureLockViewListener;
 
+    public static final int ACTION_UNDEFINED = 0x000;
+    public static final int ACTION_LOCK = 0x100;
+    public static final int ACTION_UNLOCK = 0x200;
+    public static final int ACTION_MODIFY = 0x300;
+    private boolean isUnlocked = false;
+
+    @IntDef({ACTION_UNDEFINED, ACTION_LOCK, ACTION_UNLOCK, ACTION_MODIFY})
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface GestureLockAction {}
+
+    private @GestureLockAction int mAction = ACTION_UNDEFINED;
+
     public GestureLockViewGroup(Context context, AttributeSet attrs) {
         this(context, attrs, 0);
     }
@@ -150,7 +159,7 @@ public class GestureLockViewGroup extends RelativeLayout {
                 mFingerOnColor = a.getColor(attr, mFingerOnColor);
 
             } else if (attr == R.styleable.GestureLockViewGroup_color_finger_up) {
-                mFingerUpColor = a.getColor(attr, mFingerUpColor);
+                mFingerUpFailedColor = a.getColor(attr, mFingerUpFailedColor);
 
             } else if (attr == R.styleable.GestureLockViewGroup_count) {
                 mCount = a.getInt(attr, 3);
@@ -184,6 +193,7 @@ public class GestureLockViewGroup extends RelativeLayout {
 
         // 初始化mGestureLockViews
         if (mGestureLockViews == null) {
+
             mGestureLockViews = new GestureLockView[mCount * mCount];
             // 计算每个GestureLockView的宽度
             mGestureLockViewWidth = (int) (4 * mWidth * 1.0f / (5 * mCount + 1));
@@ -196,7 +206,7 @@ public class GestureLockViewGroup extends RelativeLayout {
                 //初始化每个GestureLockView
                 mGestureLockViews[i] = new GestureLockView(getContext(),
                         mNoFingerInnerCircleColor, mNoFingerOuterCircleColor,
-                        mFingerOnColor, mFingerUpColor);
+                        mFingerOnColor, mFingerUpFailedColor, mFingerUpDoneColor);
                 mGestureLockViews[i].setId(i + 1);
                 //设置参数，主要是定位GestureLockView间的位置
                 RelativeLayout.LayoutParams lockerParams = new RelativeLayout.LayoutParams(
@@ -244,7 +254,7 @@ public class GestureLockViewGroup extends RelativeLayout {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        if(isActionDone || mTryTimes == 0 || mAction == 0) {
+        if(isActionDone || mTryTimes == 0 || mAction == ACTION_UNDEFINED) {
             return true;
         }
         int action = event.getAction();
@@ -265,8 +275,6 @@ public class GestureLockViewGroup extends RelativeLayout {
                     if (!mChoose.contains(cId)) {
                         mChoose.add(cId);
                         child.setStatus(GestureLockView.STATUS_FINGER_ON);
-//                        if (mOnGestureLockViewListener != null)
-//                            mOnGestureLockViewListener.onBlockSelected(cId);
                         // 设置指引线的起点
                         mLastPathX = child.getLeft() / 2 + child.getRight() / 2;
                         mLastPathY = child.getTop() / 2 + child.getBottom() / 2;
@@ -283,54 +291,98 @@ public class GestureLockViewGroup extends RelativeLayout {
                 mTmpTarget.y = y;
                 break;
             case MotionEvent.ACTION_UP:
-
-//                mPaint.setColor(mFingerUpColor);
                 mPaint.setAlpha(50);
-//                this.mTryTimes--;
-
                 // 回调是否成功
                 if (mOnGestureLockViewListener != null && mChoose.size() > 0) {
                     switch (mAction) {
-                        case 0 :
-                            break;
-                        case 1 :
+                        case ACTION_LOCK :
                             if(isFirstTime) {
+                                isFirstTime = false;
+                                changeItemStatus(true);
                                 mPaint.setColor(mFingerUpDoneColor);
 //                                mFirstAnswer = mChoose.subList(0, mChoose.size());
                                 mFirstAnswer = new ArrayList<>(mChoose);
-                                isFirstTime = false;
-                                mOnGestureLockViewListener.onFirstLock(mFirstAnswer);
+                                mOnGestureLockViewListener.onFirstLock(mAction, mFirstAnswer);
                                 mHandler.sendEmptyMessageDelayed(100, 1000L);
                             } else {
                                 if(checkLockAnswer()) {
-                                    mPaint.setColor(mFingerUpDoneColor);
-                                    mOnGestureLockViewListener.onSecondLockSucceeded(mFirstAnswer);
                                     isActionDone = true;
+                                    mPaint.setColor(mFingerUpDoneColor);
+                                    mOnGestureLockViewListener.onSecondLockSucceeded(mAction, mFirstAnswer);
                                     mHandler.sendEmptyMessageDelayed(100, 1000L);
                                 } else {
-                                    mPaint.setColor(mFingerUpColor);
-                                    mOnGestureLockViewListener.onSecondLockFailed();
+                                    isActionDone = false;
+                                    mPaint.setColor(mFingerUpFailedColor);
+                                    mOnGestureLockViewListener.onSecondLockFailed(mAction);
                                     mHandler.sendEmptyMessageDelayed(100, 500L);
                                 }
+                                changeItemStatus(isActionDone);
                             }
                             break;
-                        case 2 :
+                        case ACTION_UNLOCK :
                             //延迟重置
                             if(checkUnlockAnswer()) {
-                                mOnGestureLockViewListener.onUnlockCorrect(mChoose);
+                                isActionDone = true;
+                                mPaint.setColor(mFingerUpDoneColor);
+                                mOnGestureLockViewListener.onUnlockCorrect(mAction, mChoose);
                                 mHandler.sendEmptyMessageDelayed(100, 1000L);
                             } else {
-                                mOnGestureLockViewListener.onUnlockError(mChoose, mTryTimes);
+                                isActionDone = false;
+                                mPaint.setColor(mFingerUpFailedColor);
+                                mOnGestureLockViewListener.onUnlockError(mAction, mChoose, mTryTimes);
                                 mHandler.sendEmptyMessageDelayed(100, 500L);
                             }
-
+                            changeItemStatus(isActionDone);
+                            this.mTryTimes--;
                             if (this.mTryTimes == 0) {
                                 mOnGestureLockViewListener.noMoreTry(mAction);
                             }
-                            this.mTryTimes--;
                             break;
-                        case 3:
-                            this.mTryTimes--;
+                        case ACTION_MODIFY :
+                            if(!isUnlocked) {
+                                if(checkUnlockAnswer()) {
+                                    isUnlocked = true;
+                                    changeItemStatus(true);
+                                    mPaint.setColor(mFingerUpDoneColor);
+                                    mOnGestureLockViewListener.onUnlockCorrect(mAction, mChoose);
+                                    mHandler.sendEmptyMessageDelayed(100, 1000L);
+                                } else {
+                                    changeItemStatus(false);
+                                    mPaint.setColor(mFingerUpFailedColor);
+                                    mOnGestureLockViewListener.onUnlockError(mAction, mChoose, mTryTimes);
+                                    mHandler.sendEmptyMessageDelayed(100, 500L);
+                                }
+                                this.mTryTimes--;
+                                if (this.mTryTimes == 0) {
+                                    mOnGestureLockViewListener.noMoreTry(mAction);
+                                }
+                            } else {
+                                if(isFirstTime) {
+                                    isFirstTime = false;
+                                    changeItemStatus(true);
+                                    mPaint.setColor(mFingerUpDoneColor);
+                                    mFirstAnswer = new ArrayList<>(mChoose);
+                                    mOnGestureLockViewListener.onFirstLock(mAction, mFirstAnswer);
+                                    mHandler.sendEmptyMessageDelayed(100, 1000L);
+                                } else {
+                                    if(checkLockAnswer()) {
+                                        isActionDone = true;
+                                        mPaint.setColor(mFingerUpDoneColor);
+                                        mOnGestureLockViewListener.onSecondLockSucceeded(mAction, mFirstAnswer);
+                                        mHandler.sendEmptyMessageDelayed(100, 1000L);
+                                    } else {
+                                        isActionDone = false;
+                                        mPaint.setColor(mFingerUpFailedColor);
+                                        mOnGestureLockViewListener.onSecondLockFailed(mAction);
+                                        mHandler.sendEmptyMessageDelayed(100, 500L);
+                                    }
+                                    changeItemStatus(isActionDone);
+                                }
+                            }
+
+                            break;
+                        case ACTION_UNDEFINED :
+                        default:
                             break;
 
                     }
@@ -342,12 +394,8 @@ public class GestureLockViewGroup extends RelativeLayout {
                 mTmpTarget.x = mLastPathX;
                 mTmpTarget.y = mLastPathY;
 
-                // 改变子元素的状态为UP
-                changeItemStatus();
-
                 // 计算每个元素中箭头需要旋转的角度
-                for (int i = 0; i + 1 < mChoose.size(); i++)
-                {
+                for (int i = 0; i + 1 < mChoose.size(); i++) {
                     int childId = mChoose.get(i);
                     int nextChildId = mChoose.get(i + 1);
 
@@ -367,21 +415,16 @@ public class GestureLockViewGroup extends RelativeLayout {
         return true;
     }
 
-    private void changeItemStatus()
+    private void changeItemStatus(boolean isActionDone)
     {
+        int status = isActionDone ? GestureLockView.STATUS_FINGER_UP_DONE : GestureLockView.STATUS_FINGER_UP_FAILED;
         for (GestureLockView gestureLockView : mGestureLockViews)
         {
             if (mChoose.contains(gestureLockView.getId()))
             {
-                gestureLockView.setStatus(GestureLockView.STATUS_FINGER_UP);
+                gestureLockView.setStatus(status);
             }
         }
-    }
-
-    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
-    public GestureLockViewGroup(Context context, AttributeSet attrs, int defStyleAttr, int defStyleRes) {
-        super(context, attrs, defStyleAttr, defStyleRes);
-
     }
 
     /**
@@ -414,18 +457,7 @@ public class GestureLockViewGroup extends RelativeLayout {
     }
 
     private boolean checkLockAnswer() {
-        if (mFirstAnswer.size() != mChoose.size())
-            return false;
-
-        return mFirstAnswer.equals(mChoose);
-
-//        int n = mFirstAnswer.size();
-//
-//        for (int i = 0; i < n; i++) {
-//            if (mFirstAnswer.get(i) != mChoose.get(i))
-//                return false;
-//        }
-//        return true;
+        return mFirstAnswer.size() == mChoose.size() && mFirstAnswer.equals(mChoose);
     }
 
     /**
@@ -440,12 +472,9 @@ public class GestureLockViewGroup extends RelativeLayout {
         //设置了内边距，即x,y必须落入下GestureLockView的内部中间的小区域中，可以通过调整padding使得x,y落入范围不变大，或者不设置padding
         int padding = (int) (mGestureLockViewWidth * 0.15);
 
-        if (x >= gestureLockView.getLeft() + padding && x <= gestureLockView.getRight() - padding
+        return x >= gestureLockView.getLeft() + padding && x <= gestureLockView.getRight() - padding
                 && y >= gestureLockView.getTop() + padding
-                && y <= gestureLockView.getBottom() - padding) {
-            return true;
-        }
-        return false;
+                && y <= gestureLockView.getBottom() - padding;
     }
 
     /**
@@ -463,7 +492,7 @@ public class GestureLockViewGroup extends RelativeLayout {
         return null;
     }
 
-    public void setAction(int action) {
+    public void setAction(@GestureLockAction int action) {
         this.mAction = action;
     }
 
@@ -473,7 +502,10 @@ public class GestureLockViewGroup extends RelativeLayout {
      * @param answer
      */
     public void setAnswer(Integer [] answer) {
-        this.mAnswer = answer;
+        if(answer == null || answer.length ==0) {
+            return;
+        }
+        this.mAnswer = answer ;
     }
 
     /**
@@ -537,38 +569,28 @@ public class GestureLockViewGroup extends RelativeLayout {
 
     public interface OnGestureLockViewListener {
 
-        /**
-         * 单独选中元素的Id
-         *
-         * @param cId
-         */
-        void onBlockSelected(int cId);
+        void onFirstLock(@GestureLockAction int action,List<Integer> answer);
 
-        void onFirstLock(List<Integer> answer);
+        void onSecondLockSucceeded(@GestureLockAction int action,List<Integer> answer);
 
-        void onSecondLockSucceeded(List<Integer> answer);
-
-        void onSecondLockFailed();
+        void onSecondLockFailed(@GestureLockAction int action);
         /**
          *  手势解锁成功
          */
-        void onUnlockCorrect(List<Integer> answer);
+        void onUnlockCorrect(@GestureLockAction int action, List<Integer> answer);
 
         /**
          *  手势解锁失败
          *  @param answer
          *  @param chances
          */
-        void onUnlockError(List<Integer> answer, int chances);
-
+        void onUnlockError(@GestureLockAction int action, List<Integer> answer, int chances);
 
         /**
          *  手势解锁超过尝试次数
          *  用于 解锁 和 更换密码
          *  @param action
          */
-        void noMoreTry(int action);
-
-        void gestureAnswer(int [] answer);
+        void noMoreTry(@GestureLockAction int action);
     }
 }
